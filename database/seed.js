@@ -1,6 +1,7 @@
 const con = require('./index');
 const faker = require('faker');
 const jsonfile = require('jsonfile');
+const fs = require('graceful-fs');
 
 const outfile = './database/outfile.txt';
 
@@ -60,8 +61,8 @@ const generateData = () => {
 
   
   if (kind === 'payment') {
-    console.log('insdie payment');
-    console.log(firstRequest.transactionID, firstRequest.transactionID);
+    // console.log('insdie payment');
+    // console.log(firstRequest.transactionID, firstRequest.transactionID);
     //create the credit side of the payment
   
     originalBalance2 = random > 80 ? faker.finance.amount(0, 2999.99, 2) : faker.finance.amount(0, 500, 2);
@@ -87,7 +88,7 @@ const generateData = () => {
   
   } else if (kind === 'cashout') {
     //create another cashout
-    console.log('inside cashout');
+    // console.log('inside cashout');
     intOrExt = 'external';
     originalBalance2 = random > 80 ? Number(faker.finance.amount(0, 2999.99, 2)) : Number(faker.finance.amount(0, 500, 2));
 
@@ -141,48 +142,50 @@ const generateData = () => {
 };
 
 const generateNTransactions = (n) => {
-  for (var i = 0; i < n; i += 2) {
+  var writeStream = fs.createWriteStream('/Users/kaylincollins/HRSF84/hrsf84-thesis/database/data.txt', {'flags': 'a'});
+
+  for (var i = 5000000; i < n + 5000000; i += 2) {
     var transactions = generateData();
-    var transaction1 = i + ',' + transactions[0];
-    console.log('transaction', transaction1);
-    var transaction2 = (i + 1) + ',' + transactions[1];
+    var transaction1 = i + ',' + transactions[0] + '|\r\n';
+    var transaction2 = (i + 1) + ',' + transactions[1] + '|\r\n';
 
-    jsonfile.writeFileSync(outfile, transaction1, {flag: 'a', spaces: 0, EOL: '\r\n'}, function(err) {
+    writeStream.write(transaction1, (err) => {
       if (err) {
-        return console.log('ERROR', err);
+        console.log(err);
       }
-
-      console.log('The file was saved with transactionID', transaction1.transactionID);
     });
 
-    jsonfile.writeFileSync(outfile, transaction2, {flag: 'a', spaces: 0, EOL: '\r\n'}, function(err) {
+    writeStream.write(transaction2, (err) => {
       if (err) {
-        return console.log('ERROR', err);
+        console.log(err);
       }
-
-      console.log('The file was saved with transactionID', transaction2.transactionID);
     });
   }
+  writeStream.end();
+
 };
 
-generateNTransactions(5);
+//generateNTransactions(5000000);
 
+// for (var i = 0; i < n; i += 2) {
+//   var transactions = generateData();
+//   var transaction1 = i + ',' + transactions[0];
+//   console.log('transaction', transaction1);
+//   var transaction2 = (i + 1) + ',' + transactions[1];
 
+//   jsonfile.writeFileSync(outfile, transaction1, {flag: 'a', spaces: 0, EOL: '\r\n'}, function(err) {
+//     if (err) {
+//       return console.log('ERROR', err);
+//     }
 
+//     console.log('The file was saved with transactionID', transaction1.transactionID);
+//   });
 
+//   jsonfile.writeFileSync(outfile, transaction2, {flag: 'a', spaces: 0, EOL: '\r\n'}, function(err) {
+//     if (err) {
+//       return console.log('ERROR', err);
+//     }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+//     console.log('The file was saved with transactionID', transaction2.transactionID);
+//   });
+// }
