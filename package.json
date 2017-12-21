@@ -23,9 +23,10 @@
     "faker": "^4.1.0",
     "graceful-fs": "^4.1.11",
     "jsonfile": "^4.0.0",
-    "mysql": "^2.15.0"
+    "mysql": "^2.15.0",
+    "sqs-consumer": "^3.8.0"
   },
   "devDependencies": {
-        "loadtest": "*"
-    }
+    "loadtest": "*"
+  }
 }

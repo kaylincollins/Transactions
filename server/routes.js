@@ -1,7 +1,5 @@
 var aws = require('aws-sdk');
 
-var del = require('./deleteQueueMessages');
-
 var fromClientServer = 'https://sqs.us-east-2.amazonaws.com/025476314761/clientserver';
 var toClientServer = 'https://sqs.us-east-2.amazonaws.com/025476314761/toClientServer';
 var fromBankServices = 'https://sqs.us-east-2.amazonaws.com/025476314761/fromBankServices';

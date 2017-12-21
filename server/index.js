@@ -1,22 +1,23 @@
-var apm = require('elastic-apm-node').start({
-  // Set required app name (allowed characters: a-z, A-Z, 0-9, -, _, and space)
-  appName: 'hrsf84-thesis',
+// var apm = require('elastic-apm-node').start({
+//   // Set required app name (allowed characters: a-z, A-Z, 0-9, -, _, and space)
+//   appName: 'hrsf84-thesis',
 
-  // // Use if APM Server requires a token
-  // secretToken: '',
+//   // // Use if APM Server requires a token
+//   // secretToken: '',
 
-  // // Set custom APM Server URL (default: http://localhost:8200)
-  // serverUrl: '',
-});
+//   // // Set custom APM Server URL (default: http://localhost:8200)
+//   // serverUrl: '',
+// });
 
 
 var express = require('express');
 var bodyParser = require('body-parser');
 var routes = require('./routes');
-var del = require('./deleteQueueMessages');
+var helper = require('./helper');
 var faker = require('faker');
 var dbSeed = require('../database/seed');
 var db = require('../database/dbHelpers');
+var Consumer = require('sqs-consumer');
 var aws = require('aws-sdk');
 var fromClientServer = 'https://sqs.us-east-2.amazonaws.com/025476314761/clientserver';
 var toClientServer = 'https://sqs.us-east-2.amazonaws.com/025476314761/toClientServer';
@@ -38,6 +39,75 @@ app.get('/', function (req, res) {
   res.end('hello');
 });
 
+/*----------------CLIENT CONSUMER FUNCTION---------------------*/
+
+const clientWorker = Consumer.create({
+  queueUrl: fromClientServer,
+  batchSize: 10,
+  handleMessage: (message, done) => {
+    var message = JSON.parse(message.Body);
+    
+    var isInternal = (message) => {
+      if (message.payer.balance - message.amount >= 0) {
+        return true;
+      } else {
+        return false;
+      }
+    };
+
+    if ( message.transactionType === 'payment' && isInternal(message) ) {
+      helper.saveToDB(message, helper.sendToLedger);
+    } else {
+      helper.saveToDB(message, helper.sendToBank);
+    }
+    done();
+    console.log('DONE!!!!');
+  },
+  sqs: new aws.SQS()
+});
+ 
+clientWorker.on('error', (err) => {
+  console.log(err.message);
+});
+ 
+clientWorker.start();
+
+/*----------------BANK CONSUMER FUNCTION---------------------*/
+
+const bankWorker = Consumer.create({
+  queueUrl: fromBankServices,
+  batchSize: 10,
+  handleMessage: (message, done) => {
+    console.log('MESSAGE FROM WORKER', message);
+    done();
+  },
+  sqs: new aws.SQS()
+});
+ 
+bankWorker.on('error', (err) => {
+  console.log(err.message);
+});
+ 
+// bankWorker.start();
+
+/*----------------LEDGER CONSUMER FUNCTION---------------------*/
+
+const ledgerWorker = Consumer.create({
+  queueUrl: fromLedger,
+  batchSize: 10,
+  handleMessage: (message, done) => {
+    console.log('MESSAGE FROM WORKER', message);
+    done();
+  },
+  sqs: new aws.SQS()
+});
+ 
+ledgerWorker.on('error', (err) => {
+  console.log(err.message);
+});
+ 
+// ledgerWorker.start();
+
 /*----------------SEND TO QUEUE FUNCTIONS---------------------*/
 
 
@@ -48,7 +118,7 @@ app.get('/sendToClientServer', function(req, res) {
   { userId: 16,
     firstName: 'Erna',
     lastName: 'Hirthe',
-    balance: 2348.23 },
+    balance: 101 },
   payee:
   { userId: 17,
     firstName: 'Ferne',
@@ -57,9 +127,14 @@ app.get('/sendToClientServer', function(req, res) {
   amount: 100,
   transactionType: 'payment',
   transactionId: { _id: '5a380b30f0609c9f1b0c2fd7', transactionId: transactionID },
-  timestamp: 1513626786103 }; 
+  timestamp: '2017-12-21T19:40:12.618Z' }; 
 
   var message1 = { payer:
+  { userId: 16,
+    firstName: 'Erna',
+    lastName: 'Hirthe',
+    balance: 2348.23 },
+  payee:
   { userId: 16,
     firstName: 'Erna',
     lastName: 'Hirthe',
@@ -67,7 +142,7 @@ app.get('/sendToClientServer', function(req, res) {
   amount: 100,
   transactionType: 'cashout',
   transactionId: { _id: '5a380b30f0609c9f1b0c2fd7', transactionId: transactionID },
-  timestamp: 1513626786103 }; 
+  timestamp: '2017-12-21T19:40:12.618Z' }; 
   var params = {
     MessageBody: JSON.stringify(message),
     QueueUrl: fromClientServer,
@@ -161,7 +236,7 @@ app.get('/fetchFromLedger',
   });
 
 
-app.use(apm.middleware.express());
+// app.use(apm.middleware.express());
 
 app.listen(3000, function() {
   console.log('listening on port 3000!');
