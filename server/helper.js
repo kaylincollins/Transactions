@@ -14,7 +14,6 @@ aws.config.loadFromPath(__dirname + '/../config.json');
 var sqs = new aws.SQS();
 
 module.exports.saveToDB = (message, callback) => {
-  console.log('SAVE TO DB', message);
   
   var isInternal = (message) => {
     if (message.payer.balance - message.amount >= 0) {

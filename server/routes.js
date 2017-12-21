@@ -146,7 +146,6 @@ module.exports.sendToLedger = (req, res, next) => {
     if (err) {
       res.send(err);
     } else {
-      console.log('INSIDE SEND TO LEDGER');
       del.deleteClientQueue(fromClientServer, res.messageReceipt);
       res.end(JSON.stringify(data));
     }
