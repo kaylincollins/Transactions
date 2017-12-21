@@ -174,7 +174,6 @@ module.exports.sendToLedger = (payer, payee) => {
 /*----------------SAVING TO DB FUNCTIONS---------------------*/
 
 var savePayment = function(payer, payee, cb) {
-  console.log('inside save payment PAYER', payee);
   con.connection.query(`INSERT INTO transactions (transactionID, userID, first_name, last_name, transaction_type, transaction_kind, status, original_balance, amount, after_trans_bal, trans_confirm, int_ext, orig_timestamp) VALUES (${payer.transactionID}, ${payer.userID}, '${payer.first_name}', '${payer.last_name}', '${payer.transaction_type}', '${payer.transaction_kind}', '${payer.status}', ${payer.original_balance}, ${payer.amount}, ${payer.after_trans_bal}, ${payer.trans_confirm}, '${payer.int_ext}', '${payer.orig_timestamp}')`, 
     function (err, results, fields) {
       if (err) {
@@ -193,7 +192,6 @@ var savePayment = function(payer, payee, cb) {
 };
 
 var saveCashout = function(payee, cb) {
-  console.log('inside save cashout!', cb);
   con.connection.query(`INSERT INTO transactions (transactionID, userID, first_name, last_name, transaction_type, transaction_kind, status, original_balance, amount, after_trans_bal, trans_confirm, int_ext, orig_timestamp) VALUES (${payee.transactionID}, ${payee.userID}, '${payee.first_name}', '${payee.last_name}', '${payee.transaction_type}', '${payee.transaction_kind}', '${payee.status}', ${payee.original_balance}, ${payee.amount}, ${payee.after_trans_bal}, ${payee.trans_confirm}, '${payee.int_ext}', '${payee.orig_timestamp}')`, 
     function (err, results, fields) {
       if (err) {

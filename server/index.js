@@ -1,13 +1,13 @@
-// var apm = require('elastic-apm-node').start({
-//   // Set required app name (allowed characters: a-z, A-Z, 0-9, -, _, and space)
-//   appName: 'hrsf84-thesis',
+var apm = require('elastic-apm-node').start({
+  // Set required app name (allowed characters: a-z, A-Z, 0-9, -, _, and space)
+  appName: 'hrsf84-thesis',
 
-//   // // Use if APM Server requires a token
-//   // secretToken: '',
+  // // Use if APM Server requires a token
+  // secretToken: '',
 
-//   // // Set custom APM Server URL (default: http://localhost:8200)
-//   // serverUrl: '',
-// });
+  // // Set custom APM Server URL (default: http://localhost:8200)
+  // serverUrl: '',
+});
 
 
 var express = require('express');
@@ -61,7 +61,7 @@ const clientWorker = Consumer.create({
       helper.saveToDB(message, helper.sendToBank);
     }
     done();
-    console.log('DONE!!!!');
+ 
   },
   sqs: new aws.SQS()
 });
@@ -236,7 +236,7 @@ app.get('/fetchFromLedger',
   });
 
 
-// app.use(apm.middleware.express());
+app.use(apm.middleware.express());
 
 app.listen(3000, function() {
   console.log('listening on port 3000!');
