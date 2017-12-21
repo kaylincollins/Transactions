@@ -37,6 +37,7 @@ module.exports.initialSaveAndRoute = (req, res, next) => {
     after_trans_bal: '', 
     trans_confirm: null,
     int_ext: '',
+    orig_timestamp: trans.payer.timestamp
   };
 
   if (trans.transactionType === 'payment') {
@@ -53,7 +54,8 @@ module.exports.initialSaveAndRoute = (req, res, next) => {
       amount: trans.amount,
       after_trans_bal: '', 
       trans_confirm: null,
-      int_ext: ''
+      int_ext: '',
+      orig_timestamp: trans.payee.timestamp
     };
 
     payer.transaction_type = 'debit';
@@ -125,9 +127,9 @@ module.exports.initialSaveAndRoute = (req, res, next) => {
     payer.after_trans_bal = payer.original_balance - payer.amount;
     payer.int_ext = 'external';
     payer.status = 'pending';
-    payee.transaction_type = 'credit';
+    payer.transaction_type = 'credit';
 
-    saveCashout();
+    saveCashout(payer);
 
     res.next = 'bank';
 
@@ -140,6 +142,71 @@ module.exports.initialSaveAndRoute = (req, res, next) => {
 
     next();
   }
+};
+
+module.exports.fetchRequestInfo = (req, res, next) => {
+  //handle case of initial approval from bank
+  //need to fetch transaction info and send to ledger
+  //will need to cache this later for speed
+  if (res.bankResponse.status === 'confirmed') {
+    next();
+  }
+  
+  res.transID = res.bankResponse.transactionID;
+
+  con.connection.query(`SELECT * FROM transactions WHERE transactionID = ${res.transID}`, 
+    function (err, results, fields) {
+      if (err) {
+        console.log('ERROR!!!!', err);
+        res.end('error with retreiving Transaction info');
+      } else {
+    
+        for (var i = 0; i < results.length; i++) {
+          if (results[i].transaction_type === 'debit') {
+            var Payer = {
+              userID: results[i].userID || null,
+              firstName: results[i].first_name || null,
+              lastName: results[i].last_name || null
+            };
+          } else if (results[i].transaction_type === 'credit') {
+            var Payee = {
+              userID: results[i].userID,
+              firstName: results[i].first_name,
+              lastName: results[i].last_name
+            };
+          }
+        }
+        res.ledger = {
+          Payer: Payer || {userID: null, firstName: null, lastName: null},
+          Payee: Payee,
+          amount: results[0].amount,
+          transactionID: results[0].transactionID,
+          transactionKind: results[0].int_ext,
+          action: results[0].transaction_kind,
+          status: null,
+          timestamp: results[0].orig_timestamp
+        };    
+
+        res.declineToClient = [{userID: results[0].userID, transactionID: results[0].transactionID, balance: results[0].original_balance, status: res.bankResponse.status}, {userID: results[1].userID, transactionID: results[1].transactionID, balance: results[1].original_balance, status: res.bankResponse.status}];
+
+        next(); //sendToLedger
+      }
+    });
+};
+
+module.exports.updateStatus = (req, res, next) => {
+  //case of initial decline or eventual approval or cancellation
+  con.connection.query(`UPDATE transactions SET status = '${res.bankResponse.status}' WHERE transactionID = ${res.bankResponse.transactionID}`, 
+    function (err, results, fields) {
+      if (err) {
+        console.log('ERROR!!!!', err);
+        res.end('error with updating status of transaction');
+      } else if (res.bankResponse.status !== 'confirmed') {
+        next();
+      } else {
+        res.end('confirmed');
+      }
+    });
 };
 
 var savePayment = function(payer, payee) {
