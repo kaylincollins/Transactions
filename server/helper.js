@@ -150,7 +150,7 @@ module.exports.sendToLedger = (payer, payee) => {
     transactionID: payer.transactionID,
     transactionKind: payer.int_ext,
     action: payer.transaction_kind,
-    status: payer.status,
+    status: null,
     timestamp: payer.orig_timestamp
   };
 
@@ -202,8 +202,64 @@ var saveCashout = function(payee, cb) {
     });
 };
 
+/*----------------UPDATING DB FUNCTIONS---------------------*/
+
+module.exports.updateStatus = (message) => {
+  con.connection.query(`UPDATE transactions SET status = '${message.status}' WHERE transactionID = ${message.transactionID}`, 
+    function (err, results, fields) {
+      if (err) {
+        console.log('ERROR with updating status', err);
+      }
+    });
+};
 
 
+/*----------------FETCH FROM DB FUNCTIONS---------------------*/
+var updateStatusWithID = (id) => {
+  con.connection.query(`UPDATE transactions SET status = 'decline' WHERE id = ${id}`, 
+    function (err, results, fields) {
+      if (err) {
+        console.log('ERROR with updating status using ID', err);
+      }
+    });
+};
+
+module.exports.fetchRequestInfo = (message, callback) => {
+  //handle case of initial approval from bank
+  //need to fetch transaction info and send to ledger
+  //will need to cache this later for speed
+  
+  con.connection.query(`SELECT * FROM transactions WHERE transactionID = ${message.transactionID}`, 
+    function (err, results, fields) {
+      if (err) {
+        console.log('ERROR with fetching transaction info', err);
+      } else {
+        callback(results, updateStatusWithID);
+      }
+    });
+};
+
+
+module.exports.sendDeclineToClientServer = (message, callback) => {
+
+  var declineMessage = [];
+
+  message.forEach(function(row) {
+    declineMessage.push({transactionID: row.transactionID, status: 'declined', userID: row.userID, balance: row.original_balance});
+    callback(row.id);
+  });
+
+  var params = {
+    MessageBody: JSON.stringify(declineMessage),
+    QueueUrl: toClientServer,
+    DelaySeconds: 0,
+  };
+  sqs.sendMessage(params, function(err, data) {
+    if (err) {
+      console.log('ERROR with sending decline from bank', err);
+    } 
+  });
+};
 
 
 

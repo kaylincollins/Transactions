@@ -70,7 +70,7 @@ clientWorker.on('error', (err) => {
   console.log(err.message);
 });
  
-clientWorker.start();
+// clientWorker.start();
 
 /*----------------BANK CONSUMER FUNCTION---------------------*/
 
@@ -78,7 +78,37 @@ const bankWorker = Consumer.create({
   queueUrl: fromBankServices,
   batchSize: 10,
   handleMessage: (message, done) => {
-    console.log('MESSAGE FROM WORKER', message);
+    var message = JSON.parse(message.Body);
+    console.log('MESSAGE FROM BANK', message);
+
+    if (message.status === 'approved') {
+      console.log('approved');
+      //fetch data 
+      helper.fetchRequestInfo(message, helper.sendApprovedToLedger);
+      //send to Ledger
+    }
+
+    if (message.status === 'declined') {
+      console.log('declined');
+      helper.fetchRequestInfo(message, helper.sendDeclineToClientServer);
+    }
+
+    if (message.status === 'confirmed') {
+      console.log('confirmed');
+      helper.updateStatus(message);
+    }
+
+    if (message.status === 'cancelled') {
+      console.log('cancelled');
+      //write a reversal transaction
+      //update original transaction 
+      //send reversal to ledger
+    }
+
+
+
+
+
     done();
   },
   sqs: new aws.SQS()
@@ -88,7 +118,7 @@ bankWorker.on('error', (err) => {
   console.log(err.message);
 });
  
-// bankWorker.start();
+bankWorker.start();
 
 /*----------------LEDGER CONSUMER FUNCTION---------------------*/
 
@@ -174,7 +204,7 @@ app.get('/sendToBankServices', function(req, res) {
   var transactionID = faker.random.number(10000000);
   var status = faker.random.arrayElement(['approved', 'declined', 'cancelled', 'confirmed']);
 
-  var message = {transactionID: transactionID, status: status};
+  var message = {transactionID: 7, status: status};
 
   var params = {
     MessageBody: JSON.stringify(message),
