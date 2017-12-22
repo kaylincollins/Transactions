@@ -168,6 +168,48 @@ module.exports.sendToLedger = (payer, payee) => {
   });
 };
 
+module.exports.sendApprovedToLedger = (results) => {
+
+  for (var i = 0; i < results.length; i++) {
+    if (results[i].transaction_type === 'debit') {
+      var payer = {
+        userID: results[i].userID,
+        firstName: results[i].first_name,
+        lastName: results[i].last_name
+      };
+    } else if (results[i].transaction_type === 'credit') {
+      var payee = {
+        userID: results[i].userID,
+        firstName: results[i].first_name,
+        lastName: results[i].last_name
+      };
+    }
+  }
+  var ledgerApproved = {
+    payer: payer || {userID: null, firstName: null, lastName: null},
+    payee: payee,
+    amount: results[0].amount,
+    transactionID: results[0].transactionID,
+    transactionKind: results[0].int_ext,
+    action: results[0].transaction_kind,
+    status: null,
+    timestamp: results[0].orig_timestamp
+  };   
+
+  var params = {
+    MessageBody: JSON.stringify(ledgerApproved),
+    QueueUrl: toLedger,
+    DelaySeconds: 0,
+  };
+  sqs.sendMessage(params, function(err, data) {
+    if (err) {
+      console.log(err);
+    } else {
+      console.log('Sent pre-approved request to ledger queue!');
+    }
+  }); 
+
+};
 
 
 /*----------------SAVING TO DB FUNCTIONS---------------------*/
@@ -215,8 +257,8 @@ module.exports.updateStatus = (message) => {
 
 
 /*----------------FETCH FROM DB FUNCTIONS---------------------*/
-var updateStatusWithID = (id) => {
-  con.connection.query(`UPDATE transactions SET status = 'decline' WHERE id = ${id}`, 
+var updateStatusWithID = (id, status) => {
+  con.connection.query(`UPDATE transactions SET status = '${status}' WHERE id = ${id}`, 
     function (err, results, fields) {
       if (err) {
         console.log('ERROR with updating status using ID', err);
@@ -224,10 +266,12 @@ var updateStatusWithID = (id) => {
     });
 };
 
+
 module.exports.fetchRequestInfo = (message, callback) => {
   //handle case of initial approval from bank
   //need to fetch transaction info and send to ledger
   //will need to cache this later for speed
+  console.log('inside fetch request info');
   
   con.connection.query(`SELECT * FROM transactions WHERE transactionID = ${message.transactionID}`, 
     function (err, results, fields) {
@@ -246,7 +290,7 @@ module.exports.sendDeclineToClientServer = (message, callback) => {
 
   message.forEach(function(row) {
     declineMessage.push({transactionID: row.transactionID, status: 'declined', userID: row.userID, balance: row.original_balance});
-    callback(row.id);
+    callback(row.id, 'declined'); //updateStatusWithID
   });
 
   var params = {
@@ -261,7 +305,70 @@ module.exports.sendDeclineToClientServer = (message, callback) => {
   });
 };
 
+module.exports.sendReversalToLedger = (results, callback) => {
+  for (var i = 0; i < results.length; i++) {
+    if (results[i].transaction_type === 'debit') {
+      var payer = {
+        userID: results[i].userID,
+        firstName: results[i].first_name,
+        lastName: results[i].last_name
+      };
+    } else if (results[i].transaction_type === 'credit') {
+      var payee = {
+        userID: results[i].userID,
+        firstName: results[i].first_name,
+        lastName: results[i].last_name
+      };
+    }
+  }
+  var ledgerReversal = {
+    payer: payer || {userID: null, firstName: null, lastName: null},
+    payee: payee,
+    amount: results[0].amount,
+    transactionID: results[0].transactionID,
+    transactionKind: results[0].int_ext,
+    action: results[0].transaction_kind,
+    status: 'reversal',
+    timestamp: results[0].orig_timestamp
+  };   
+
+  var params = {
+    MessageBody: JSON.stringify(ledgerReversal),
+    QueueUrl: toLedger,
+    DelaySeconds: 0,
+  };
+  sqs.sendMessage(params, function(err, data) {
+    if (err) {
+      console.log(err);
+    } else {
+      console.log('Sent reversal request to ledger queue!');
+      results.forEach(function(row) {
+        callback(row.id, 'cancelled');
+      });
+    }
+  }); 
+};
+
+module.exports.addStatusFromLedger = (message, callback) => {
+  message.forEach(function(row) {
+    row.status = 'approved';
+  });
+  callback(message);
+};
 
 
+module.exports.sendApprovedToClientServer = (message) => {
+// console.log('MESSAGE INSDIE SENT TO CS', message);
+  var params = {
+    MessageBody: JSON.stringify(message),
+    QueueUrl: toClientServer,
+    DelaySeconds: 0,
+  };
+  sqs.sendMessage(params, function(err, data) {
+    if (err) {
+      console.log('ERROR with sending approved to client server', err);
+    } 
+  });
+};
 
 

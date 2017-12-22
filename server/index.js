@@ -1,4 +1,4 @@
-var apm = require('elastic-apm-node').start({
+const apm = require('elastic-apm-node').start({
   // Set required app name (allowed characters: a-z, A-Z, 0-9, -, _, and space)
   appName: 'hrsf84-thesis',
 
@@ -10,30 +10,28 @@ var apm = require('elastic-apm-node').start({
 });
 
 
-var express = require('express');
-var bodyParser = require('body-parser');
-var routes = require('./routes');
-var helper = require('./helper');
-var faker = require('faker');
-var dbSeed = require('../database/seed');
-var db = require('../database/dbHelpers');
-var Consumer = require('sqs-consumer');
-var aws = require('aws-sdk');
-var fromClientServer = 'https://sqs.us-east-2.amazonaws.com/025476314761/clientserver';
-var toClientServer = 'https://sqs.us-east-2.amazonaws.com/025476314761/toClientServer';
-var fromBankServices = 'https://sqs.us-east-2.amazonaws.com/025476314761/fromBankServices';
-var toBankServices = 'https://sqs.us-east-2.amazonaws.com/025476314761/toBankServices';
-var fromLedger = 'https://sqs.us-east-2.amazonaws.com/025476314761/fromLedger';
-var toLedger = 'https://sqs.us-east-2.amazonaws.com/025476314761/toLedger';
+const express = require('express');
+const bodyParser = require('body-parser');
+const helper = require('./helper');
+const faker = require('faker');
+const dbSeed = require('../database/seed');
+const Consumer = require('sqs-consumer');
+const aws = require('aws-sdk');
+const fromClientServer = 'https://sqs.us-east-2.amazonaws.com/025476314761/clientserver';
+const toClientServer = 'https://sqs.us-east-2.amazonaws.com/025476314761/toClientServer';
+const fromBankServices = 'https://sqs.us-east-2.amazonaws.com/025476314761/fromBankServices';
+const toBankServices = 'https://sqs.us-east-2.amazonaws.com/025476314761/toBankServices';
+const fromLedger = 'https://sqs.us-east-2.amazonaws.com/025476314761/fromLedger';
+const toLedger = 'https://sqs.us-east-2.amazonaws.com/025476314761/toLedger';
 
-var app = express();
+const app = express();
 
 // app.use(express.static(__dirname + '/../react-client/dist'));
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 
 aws.config.loadFromPath(__dirname + '/../config.json');
-var sqs = new aws.SQS();
+const sqs = new aws.SQS();
 
 app.get('/', function (req, res) {
   res.end('hello');
@@ -70,7 +68,7 @@ clientWorker.on('error', (err) => {
   console.log(err.message);
 });
  
-// clientWorker.start();
+clientWorker.start();
 
 /*----------------BANK CONSUMER FUNCTION---------------------*/
 
@@ -82,10 +80,8 @@ const bankWorker = Consumer.create({
     console.log('MESSAGE FROM BANK', message);
 
     if (message.status === 'approved') {
-      console.log('approved');
-      //fetch data 
+      console.log('approved'); 
       helper.fetchRequestInfo(message, helper.sendApprovedToLedger);
-      //send to Ledger
     }
 
     if (message.status === 'declined') {
@@ -100,14 +96,8 @@ const bankWorker = Consumer.create({
 
     if (message.status === 'cancelled') {
       console.log('cancelled');
-      //write a reversal transaction
-      //update original transaction 
-      //send reversal to ledger
+      helper.fetchRequestInfo(message, helper.sendReversalToLedger);
     }
-
-
-
-
 
     done();
   },
@@ -126,7 +116,9 @@ const ledgerWorker = Consumer.create({
   queueUrl: fromLedger,
   batchSize: 10,
   handleMessage: (message, done) => {
-    console.log('MESSAGE FROM WORKER', message);
+    var message = JSON.parse(message.Body);
+
+    helper.addStatusFromLedger(message, helper.sendApprovedToClientServer);
     done();
   },
   sqs: new aws.SQS()
@@ -136,7 +128,7 @@ ledgerWorker.on('error', (err) => {
   console.log(err.message);
 });
  
-// ledgerWorker.start();
+ledgerWorker.start();
 
 /*----------------SEND TO QUEUE FUNCTIONS---------------------*/
 
@@ -234,36 +226,6 @@ app.get('/sendToLedger', function(req, res) {
     }
   });
 });
-
-/*----------------FETCH FROM QUEUE FUNCTIONS---------------------*/
-
-app.get('/fetchFromClientServer',
-  routes.handleFromClientServer,
-  db.initialSaveAndRoute,
-  routes.sendToBankServices,
-  routes.sendToLedger,
-  function (req, res) {
-    res.end();
-  });
-
-app.get('/fetchFromBankServices',
-  routes.handleFromBankServices,
-  db.fetchRequestInfo,
-  routes.sendToLedger,
-  db.updateStatus,
-  routes.sendDeclineToClientServer,
-  routes.sendReversalToLedger,
-  function (req, res) {
-    res.end();
-  });
-
-app.get('/fetchFromLedger',
-  routes.handleFromLedger,
-  // db.retreiveUpdatedBalances,
-  routes.sendToClientServer,
-  function (req, res) {
-    res.end();
-  });
 
 
 app.use(apm.middleware.express());
