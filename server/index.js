@@ -9,10 +9,10 @@ const apm = require('elastic-apm-node').start({
   // serverUrl: '',
 });
 
-
 const express = require('express');
 const bodyParser = require('body-parser');
-const helper = require('./helper');
+const helper = require('./helpers');
+const db = require('../database/helpers');
 const faker = require('faker');
 const redis = require('redis');
 const dbSeed = require('../database/seed');
