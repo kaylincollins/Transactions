@@ -1,6 +1,7 @@
 const con = require('../database/index');
 
 var aws = require('aws-sdk');
+const redis = require('redis');
 
 var fromClientServer = 'https://sqs.us-east-2.amazonaws.com/025476314761/clientserver';
 var toClientServer = 'https://sqs.us-east-2.amazonaws.com/025476314761/toClientServer';
@@ -9,7 +10,7 @@ var toBankServices = 'https://sqs.us-east-2.amazonaws.com/025476314761/toBankSer
 var fromLedger = 'https://sqs.us-east-2.amazonaws.com/025476314761/fromLedger';
 var toLedger = 'https://sqs.us-east-2.amazonaws.com/025476314761/toLedger';
 
-
+let client = redis.createClient();
 aws.config.loadFromPath(__dirname + '/../config.json');
 var sqs = new aws.SQS();
 
@@ -66,7 +67,10 @@ module.exports.saveToDB = (message, callback) => {
     payer.orig_timestamp = originalTime.slice(1, 11) + ' ' + originalTime.slice(12, 20);
     payee.orig_timestamp = originalTime.slice(1, 11) + ' ' + originalTime.slice(12, 20);
 
+    cacheRequest(payer.transactionID, payer);
+    cacheRequest(payee.transactionID, payee);
     savePayment(payer, payee, callback);
+
 
 
   } else if ( message.transactionType === 'payment' && !isInternal(message) ) {
@@ -88,6 +92,8 @@ module.exports.saveToDB = (message, callback) => {
     payer.orig_timestamp = originalTime.slice(1, 11) + ' ' + originalTime.slice(12, 20);
     payee.orig_timestamp = originalTime.slice(1, 11) + ' ' + originalTime.slice(12, 20);
 
+    cacheRequest(payer.transactionID, payer);
+    cacheRequest(payee.transactionID, payee);
     savePayment(payer, payee, callback);
 
   } else {
@@ -103,10 +109,36 @@ module.exports.saveToDB = (message, callback) => {
 
     payee.orig_timestamp = originalTime.slice(1, 11) + ' ' + originalTime.slice(12, 20);
 
+    cacheRequest(payee.transactionID, payee);
     saveCashout(payee, callback);
 
   }
 
+};
+
+var cacheRequest = (transactionID, message) => {
+  console.log('inside cache');
+  client.hmset(transactionID, [
+    'userID', message.userID,
+    'first_name', message.first_name,
+    'last_name', message.last_name,
+    'transaction_type', message.transaction_type,
+    'transaction_kind', message.transaction_kind,
+    'status', message.status,
+    'original_balance', message.original_balance,
+    'amount', message.amount,
+    'after_trans_bal', message.after_trans_bal,
+    'trans_confirm', message. trans_confirm,
+    'int_ext', message.int_ext,
+    'orig_timestamp', message.orig_timestamp,
+    'time_complete', message.time_complete,
+  ], function(err, reply) {
+    if (err) {
+      console.log(err);
+    } 
+    console.log('REPLY', reply);
+    
+  });
 };
 
 

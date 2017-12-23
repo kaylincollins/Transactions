@@ -14,6 +14,7 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const helper = require('./helper');
 const faker = require('faker');
+const redis = require('redis');
 const dbSeed = require('../database/seed');
 const Consumer = require('sqs-consumer');
 const aws = require('aws-sdk');
@@ -23,6 +24,13 @@ const fromBankServices = 'https://sqs.us-east-2.amazonaws.com/025476314761/fromB
 const toBankServices = 'https://sqs.us-east-2.amazonaws.com/025476314761/toBankServices';
 const fromLedger = 'https://sqs.us-east-2.amazonaws.com/025476314761/fromLedger';
 const toLedger = 'https://sqs.us-east-2.amazonaws.com/025476314761/toLedger';
+
+let client = redis.createClient();
+
+client.on('connect', function() {
+  console.log('Connected to Redis...');
+});
+
 
 const app = express();
 
@@ -44,7 +52,7 @@ const clientWorker = Consumer.create({
   batchSize: 10,
   handleMessage: (message, done) => {
     var message = JSON.parse(message.Body);
-    
+
     var isInternal = (message) => {
       if (message.payer.balance - message.amount >= 0) {
         return true;
@@ -52,6 +60,8 @@ const clientWorker = Consumer.create({
         return false;
       }
     };
+
+    console.log("MESSAGEE", message);
 
     if ( message.transactionType === 'payment' && isInternal(message) ) {
       helper.saveToDB(message, helper.sendToLedger);

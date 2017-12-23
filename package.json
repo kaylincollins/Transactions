@@ -2,7 +2,7 @@
   "name": "hrsf84-thesis",
   "version": "1.0.0",
   "description": "The project description",
-  "main": ".eslintrc.js",
+  "main": "server/index.js",
   "scripts": {
     "test": "test"
   },
@@ -23,7 +23,9 @@
     "faker": "^4.1.0",
     "graceful-fs": "^4.1.11",
     "jsonfile": "^4.0.0",
+    "method-override": "^2.3.10",
     "mysql": "^2.15.0",
+    "redis": "^2.8.0",
     "sqs-consumer": "^3.8.0"
   },
   "devDependencies": {
