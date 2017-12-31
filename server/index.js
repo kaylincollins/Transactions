@@ -12,7 +12,6 @@ const apm = require('elastic-apm-node').start({
 const express = require('express');
 const bodyParser = require('body-parser');
 const helper = require('./helpers');
-const db = require('../database/helpers');
 const faker = require('faker');
 const redis = require('redis');
 const dbSeed = require('../database/seed');
@@ -203,10 +202,11 @@ app.get('/sendToClientServer', function(req, res) {
 
 app.get('/sendToBankServices', function(req, res) {
 
-  var transactionID = faker.random.number(10000000);
+  // var transactionID = faker.random.number(10000000);
+  var transactionID = 281433;
   var status = faker.random.arrayElement(['approved', 'declined', 'cancelled', 'confirmed']);
 
-  var message = {transactionID: 7, status: status};
+  var message = {transactionID: 281433, status: status};
 
   var params = {
     MessageBody: JSON.stringify(message),

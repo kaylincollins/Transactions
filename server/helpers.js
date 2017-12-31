@@ -1,18 +1,18 @@
 const con = require('../database/index');
 
-var aws = require('aws-sdk');
+const aws = require('aws-sdk');
 const redis = require('redis');
 
-var fromClientServer = 'https://sqs.us-east-2.amazonaws.com/025476314761/clientserver';
-var toClientServer = 'https://sqs.us-east-2.amazonaws.com/025476314761/toClientServer';
-var fromBankServices = 'https://sqs.us-east-2.amazonaws.com/025476314761/fromBankServices';
-var toBankServices = 'https://sqs.us-east-2.amazonaws.com/025476314761/toBankServices';
-var fromLedger = 'https://sqs.us-east-2.amazonaws.com/025476314761/fromLedger';
-var toLedger = 'https://sqs.us-east-2.amazonaws.com/025476314761/toLedger';
+const fromClientServer = 'https://sqs.us-east-2.amazonaws.com/025476314761/clientserver';
+const toClientServer = 'https://sqs.us-east-2.amazonaws.com/025476314761/toClientServer';
+const fromBankServices = 'https://sqs.us-east-2.amazonaws.com/025476314761/fromBankServices';
+const toBankServices = 'https://sqs.us-east-2.amazonaws.com/025476314761/toBankServices';
+const fromLedger = 'https://sqs.us-east-2.amazonaws.com/025476314761/fromLedger';
+const toLedger = 'https://sqs.us-east-2.amazonaws.com/025476314761/toLedger';
 
 let client = redis.createClient();
 aws.config.loadFromPath(__dirname + '/../config.json');
-var sqs = new aws.SQS();
+const sqs = new aws.SQS();
 
 module.exports.saveToDB = (message, callback) => {
   
@@ -67,8 +67,8 @@ module.exports.saveToDB = (message, callback) => {
     payer.orig_timestamp = originalTime.slice(1, 11) + ' ' + originalTime.slice(12, 20);
     payee.orig_timestamp = originalTime.slice(1, 11) + ' ' + originalTime.slice(12, 20);
 
-    cacheRequest(payer.transactionID, payer);
-    cacheRequest(payee.transactionID, payee);
+    cacheRequest(payer.transactionID, payer, payee);
+    // cacheRequest(payee.transactionID, payee);
     savePayment(payer, payee, callback);
 
 
@@ -92,8 +92,8 @@ module.exports.saveToDB = (message, callback) => {
     payer.orig_timestamp = originalTime.slice(1, 11) + ' ' + originalTime.slice(12, 20);
     payee.orig_timestamp = originalTime.slice(1, 11) + ' ' + originalTime.slice(12, 20);
 
-    cacheRequest(payer.transactionID, payer);
-    cacheRequest(payee.transactionID, payee);
+    cacheRequest(payer.transactionID, payer, payee);
+    // cacheRequest(payee.transactionID, paye);
     savePayment(payer, payee, callback);
 
   } else {
@@ -109,37 +109,52 @@ module.exports.saveToDB = (message, callback) => {
 
     payee.orig_timestamp = originalTime.slice(1, 11) + ' ' + originalTime.slice(12, 20);
 
-    cacheRequest(payee.transactionID, payee);
+    cacheRequest(payee.transactionID, payer, payee);
     saveCashout(payee, callback);
 
   }
 
 };
 
-var cacheRequest = (transactionID, message) => {
-  console.log('inside cache');
+var cacheRequest = (transactionID, payer, payee) => {
+  console.log('inside cache PAYER', payer);
+  console.log('inside cache PAYEE', payee);
   client.hmset(transactionID, [
-    'userID', message.userID,
-    'first_name', message.first_name,
-    'last_name', message.last_name,
-    'transaction_type', message.transaction_type,
-    'transaction_kind', message.transaction_kind,
-    'status', message.status,
-    'original_balance', message.original_balance,
-    'amount', message.amount,
-    'after_trans_bal', message.after_trans_bal,
-    'trans_confirm', message. trans_confirm,
-    'int_ext', message.int_ext,
-    'orig_timestamp', message.orig_timestamp,
-    'time_complete', message.time_complete,
+    'payer_userID', payer.userID,
+    'payer_first_name', payer.first_name,
+    'payer_last_name', payer.last_name,
+    'payer_original_balance', payer.original_balance,
+    'payer_after_trans_bal', payer.after_trans_bal,
+    'payee_userID', payee.userID,
+    'payee_first_name', payee.first_name,
+    'payee_last_name', payee.last_name,
+    'payee_transaction_type', payee.transaction_type, //cashout or payment
+    'payee_transaction_kind', payee.transaction_kind,
+    'payee_status', payee.status,
+    'payee_original_balance', payee.original_balance,
+    'payee_amount', payee.amount,
+    'payee_after_trans_bal', payee.after_trans_bal,
+    'payee_int_ext', payee.int_ext,
+    'payee_orig_timestamp', payee.orig_timestamp,
   ], function(err, reply) {
     if (err) {
       console.log(err);
     } 
     console.log('REPLY', reply);
+    console.log('TransactionID', transactionID);
     
   });
 };
+
+
+// PAYER { transactionID: 3074022,
+//   userID: 16,
+//   first_name: 'Erna',
+//   last_name: 'Hirthe',
+//   transaction_type: 'cashout',
+//   amount: 100,
+//   original_balance: 2348.23,
+//   trans_confirm: null }
 
 
 module.exports.sendToBank = (payer, payee) => {
@@ -243,86 +258,13 @@ module.exports.sendApprovedToLedger = (results) => {
 
 };
 
-
-/*----------------SAVING TO DB FUNCTIONS---------------------*/
-
-var savePayment = function(payer, payee, cb) {
-  con.connection.query(`INSERT INTO transactions (transactionID, userID, first_name, last_name, transaction_type, transaction_kind, status, original_balance, amount, after_trans_bal, trans_confirm, int_ext, orig_timestamp) VALUES (${payer.transactionID}, ${payer.userID}, '${payer.first_name}', '${payer.last_name}', '${payer.transaction_type}', '${payer.transaction_kind}', '${payer.status}', ${payer.original_balance}, ${payer.amount}, ${payer.after_trans_bal}, ${payer.trans_confirm}, '${payer.int_ext}', '${payer.orig_timestamp}')`, 
-    function (err, results, fields) {
-      if (err) {
-        console.log('ERROR with Payer Save', err);
-      } 
-    });
-  con.connection.query(`INSERT INTO transactions (transactionID, userID, first_name, last_name, transaction_type, transaction_kind, status, original_balance, amount, after_trans_bal, trans_confirm, int_ext, orig_timestamp) VALUES (${payee.transactionID}, ${payee.userID}, '${payee.first_name}', '${payee.last_name}', '${payee.transaction_type}', '${payee.transaction_kind}', '${payee.status}', ${payee.original_balance}, ${payee.amount}, ${payee.after_trans_bal}, ${payee.trans_confirm}, '${payee.int_ext}', '${payee.orig_timestamp}')`, 
-    function (err, results, fields) {
-      if (err) {
-        console.log('ERROR with Payee save', err);
-      } else {
-        console.log('SAVED!');
-        cb(payer, payee);
-      }
-    });
-};
-
-var saveCashout = function(payee, cb) {
-  con.connection.query(`INSERT INTO transactions (transactionID, userID, first_name, last_name, transaction_type, transaction_kind, status, original_balance, amount, after_trans_bal, trans_confirm, int_ext, orig_timestamp) VALUES (${payee.transactionID}, ${payee.userID}, '${payee.first_name}', '${payee.last_name}', '${payee.transaction_type}', '${payee.transaction_kind}', '${payee.status}', ${payee.original_balance}, ${payee.amount}, ${payee.after_trans_bal}, ${payee.trans_confirm}, '${payee.int_ext}', '${payee.orig_timestamp}')`, 
-    function (err, results, fields) {
-      if (err) {
-        console.log('ERROR!!!!', err);
-      } else {
-        console.log('SAVED!');
-        cb(payee, null);
-      }
-    });
-};
-
-/*----------------UPDATING DB FUNCTIONS---------------------*/
-
-module.exports.updateStatus = (message) => {
-  con.connection.query(`UPDATE transactions SET status = '${message.status}' WHERE transactionID = ${message.transactionID}`, 
-    function (err, results, fields) {
-      if (err) {
-        console.log('ERROR with updating status', err);
-      }
-    });
-};
-
-
-/*----------------FETCH FROM DB FUNCTIONS---------------------*/
-var updateStatusWithID = (id, status) => {
-  con.connection.query(`UPDATE transactions SET status = '${status}' WHERE id = ${id}`, 
-    function (err, results, fields) {
-      if (err) {
-        console.log('ERROR with updating status using ID', err);
-      }
-    });
-};
-
-
-module.exports.fetchRequestInfo = (message, callback) => {
-  //handle case of initial approval from bank
-  //need to fetch transaction info and send to ledger
-  //will need to cache this later for speed
-  console.log('inside fetch request info');
-  
-  con.connection.query(`SELECT * FROM transactions WHERE transactionID = ${message.transactionID}`, 
-    function (err, results, fields) {
-      if (err) {
-        console.log('ERROR with fetching transaction info', err);
-      } else {
-        callback(results, updateStatusWithID);
-      }
-    });
-};
-
-
 module.exports.sendDeclineToClientServer = (message, callback) => {
 
   var declineMessage = [];
 
   message.forEach(function(row) {
     declineMessage.push({transactionID: row.transactionID, status: 'declined', userID: row.userID, balance: row.original_balance});
-    callback(row.id, 'declined'); //updateStatusWithID
+    callback(row.id, row.transactionID, 'declined'); //updateStatus //WithID
   });
 
   var params = {
@@ -375,7 +317,7 @@ module.exports.sendReversalToLedger = (results, callback) => {
     } else {
       console.log('Sent reversal request to ledger queue!');
       results.forEach(function(row) {
-        callback(row.id, 'cancelled');
+        callback(row.id, row.transactionID, 'cancelled');
       });
     }
   }); 
@@ -400,7 +342,143 @@ module.exports.sendApprovedToClientServer = (message) => {
     if (err) {
       console.log('ERROR with sending approved to client server', err);
     } 
+    console.log('sent approved to client server');
   });
 };
+
+
+/*----------------SAVING TO DB FUNCTIONS---------------------*/
+
+var savePayment = function(payer, payee, cb) {
+  con.connection.query(`INSERT INTO transactions (transactionID, userID, first_name, last_name, transaction_type, transaction_kind, status, original_balance, amount, after_trans_bal, trans_confirm, int_ext, orig_timestamp) VALUES (${payer.transactionID}, ${payer.userID}, '${payer.first_name}', '${payer.last_name}', '${payer.transaction_type}', '${payer.transaction_kind}', '${payer.status}', ${payer.original_balance}, ${payer.amount}, ${payer.after_trans_bal}, ${payer.trans_confirm}, '${payer.int_ext}', '${payer.orig_timestamp}')`, 
+    function (err, results, fields) {
+      if (err) {
+        console.log('ERROR with Payer Save', err);
+      } 
+    });
+  con.connection.query(`INSERT INTO transactions (transactionID, userID, first_name, last_name, transaction_type, transaction_kind, status, original_balance, amount, after_trans_bal, trans_confirm, int_ext, orig_timestamp) VALUES (${payee.transactionID}, ${payee.userID}, '${payee.first_name}', '${payee.last_name}', '${payee.transaction_type}', '${payee.transaction_kind}', '${payee.status}', ${payee.original_balance}, ${payee.amount}, ${payee.after_trans_bal}, ${payee.trans_confirm}, '${payee.int_ext}', '${payee.orig_timestamp}')`, 
+    function (err, results, fields) {
+      if (err) {
+        console.log('ERROR with Payee save', err);
+      } else {
+        console.log('SAVED!');
+        cb(payer, payee);
+      }
+    });
+};
+
+var saveCashout = function(payee, cb) {
+  con.connection.query(`INSERT INTO transactions (transactionID, userID, first_name, last_name, transaction_type, transaction_kind, status, original_balance, amount, after_trans_bal, trans_confirm, int_ext, orig_timestamp) VALUES (${payee.transactionID}, ${payee.userID}, '${payee.first_name}', '${payee.last_name}', '${payee.transaction_type}', '${payee.transaction_kind}', '${payee.status}', ${payee.original_balance}, ${payee.amount}, ${payee.after_trans_bal}, ${payee.trans_confirm}, '${payee.int_ext}', '${payee.orig_timestamp}')`, 
+    function (err, results, fields) {
+      if (err) {
+        console.log('ERROR!!!!', err);
+      } else {
+        console.log('SAVED!');
+        cb(payee, null);
+      }
+    });
+};
+
+/*----------------UPDATING DB FUNCTIONS---------------------*/
+
+module.exports.updateStatus = (id, transactionID, status) => {
+  console.log('inside update status');
+  con.connection.query(`UPDATE transactions SET status = '${status}' WHERE transactionID = '${transactionID}'`, 
+    function (err, results, fields) {
+      if (err) {
+        console.log('ERROR with updating status', err);
+      }
+    });
+};
+
+
+/*----------------FETCH FROM DB FUNCTIONS---------------------*/
+var updateStatusWithID = (id, transactionID, status) => {
+  con.connection.query(`UPDATE transactions SET status = '${status}' WHERE id = ${id}`, 
+    function (err, results, fields) {
+      if (err) {
+        console.log('ERROR with updating status using ID', err);
+      }
+    });
+};
+
+
+module.exports.fetchRequestInfo = (message, callback) => {
+  //handle case of initial approval from bank
+  //need to fetch transaction info and send to ledger
+  client.hmget(message.transactionID, [
+    'payer_userID', //0
+    'payer_first_name', //1
+    'payer_last_name', //2
+    'payer_original_balance', //3
+    'payer_after_trans_bal', //4
+    'payee_userID', //5
+    'payee_first_name', //6
+    'payee_last_name', //7
+    'payee_transaction_type', //cashout or payment 8
+    'payee_transaction_kind', //9
+    'payee_status', //10
+    'payee_original_balance', //11
+    'payee_amount', //12
+    'payee_after_trans_bal', //13
+    'payee_int_ext', //14
+    'payee_orig_timestamp', //15
+  ], function(err, reply) {
+    if (err) {
+      console.log(err);
+    } else if (reply[0] !== null) {
+
+      var payer = {
+        transactionID: message.transactionID,
+        userID: reply[0],
+        first_name: reply[1],
+        last_name: reply[2],
+        transaction_type: 'debit',
+        transaction_kind: reply[8],
+        status: reply[10],
+        original_balance: reply[3],
+        amount: reply[12],
+        after_trans_bal: reply[4],
+        int_ext: reply[14],
+        orig_timestamp: reply[15]
+      };
+
+      var payee = {
+        transactionID: message.transactionID,
+        userID: reply[5],
+        first_name: reply[6],
+        last_name: reply[7],
+        transaction_type: reply[9],
+        transaction_kind: reply[8],
+        status: reply[10],
+        original_balance: reply[11],
+        amount: reply[12],
+        after_trans_bal: reply[13],
+        int_ext: reply[14],
+        orig_timestamp: reply[15]
+      };
+
+      var results = [payer, payee];      
+      console.log('REPLY', results); 
+      callback(results, module.exports.updateStatus);
+
+    } else {
+      console.log('inside fetch request info');
+      
+      con.connection.query(`SELECT * FROM transactions WHERE transactionID = ${message.transactionID}`, 
+        function (err, results, fields) {
+          if (err) {
+            console.log('ERROR with fetching transaction info', err);
+          } else {
+            console.log('RESULTS FROM DB', results);
+            callback(results, updateStatusWithID);
+          }
+        });
+    }
+  });
+};
+
+
+
 
 
