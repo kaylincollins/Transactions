@@ -383,6 +383,7 @@ var saveCashout = function(payee, cb) {
 
 module.exports.updateStatus = (id, transactionID, status) => {
   console.log('inside update status');
+  console.log(id, transactionID, status);
   con.connection.query(`UPDATE transactions SET status = '${status}' WHERE transactionID = '${transactionID}'`, 
     function (err, results, fields) {
       if (err) {
